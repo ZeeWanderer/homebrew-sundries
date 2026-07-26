@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#: Usage: brew wfcli-deps build|dev
+#: Install wfcli build or development dependencies with Homebrew Bundle.
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+profile="${1:-}"
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+    printf '%s\n' 'wfcli dependency profiles require Linux' >&2
+    exit 1
+fi
+
+case "$profile" in
+    build)
+        exec brew bundle install --file="$root/Brewfile.wfcli-build"
+        ;;
+    dev)
+        brew bundle install --file="$root/Brewfile.wfcli-build"
+        exec brew bundle install --file="$root/Brewfile.wfcli-dev"
+        ;;
+    *)
+        printf '%s\n' 'usage: brew wfcli-deps build|dev' >&2
+        exit 2
+        ;;
+esac

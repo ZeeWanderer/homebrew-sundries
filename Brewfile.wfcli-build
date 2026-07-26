@@ -1,0 +1,8 @@
+brew "cmake"
+brew "erlang"
+brew "git"
+brew "jq"
+brew "make"
+brew "mingw-w64"
+brew "rebar3"
+brew "rust"
