@@ -7,6 +7,75 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 profile="${1:-}"
 
+install_missing() {
+    local -a formulae=()
+    local formula command
+    while (($#)); do
+        formula="$1"
+        command="$2"
+        shift 2
+        command -v "$command" >/dev/null 2>&1 || formulae+=("$formula")
+    done
+    ((${#formulae[@]} == 0)) || brew install "${formulae[@]}"
+}
+
+install_cmake() {
+    local output version sorted
+    if command -v cmake >/dev/null 2>&1; then
+        output="$(cmake --version)"
+        version="${output%%$'\n'*}"
+        version="${version##* }"
+        sorted="$(printf '%s\n' 3.28 "$version" | sort -V)"
+        if [[ "${sorted%%$'\n'*}" == 3.28 ]]; then
+            return
+        fi
+    fi
+    brew install cmake
+}
+
+install_build_dependencies() {
+    local make_version
+    make_version="$(make --version 2>/dev/null || true)"
+    if [[ "${make_version%%$'\n'*}" != GNU\ Make* ]]; then
+        printf '%s\n' 'GNU Make is required; install it with the host package manager' >&2
+        exit 1
+    fi
+    if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
+        printf '%s\n' 'Rust toolchain is required; install it with rustup: https://rustup.rs' >&2
+        exit 1
+    fi
+
+    brew bundle install --file="$root/Brewfile.wfcli-build"
+    install_cmake
+    install_missing \
+        automake automake \
+        ccache ccache \
+        git git \
+        jq jq \
+        libtool libtoolize \
+        ninja ninja \
+        pkgconf pkg-config \
+        python python3
+
+    local aclocal_dir=""
+    if command -v aclocal >/dev/null 2>&1; then
+        aclocal_dir="$(aclocal --print-ac-dir 2>/dev/null || true)"
+    fi
+    if [[ -z "$aclocal_dir" || ! -f "$aclocal_dir/ax_pthread.m4" ]]; then
+        brew install autoconf-archive
+    fi
+}
+
+install_dev_dependencies() {
+    brew bundle install --file="$root/Brewfile.wfcli-dev"
+    install_missing \
+        ffmpeg ffmpeg \
+        node node \
+        ripgrep rg \
+        shellcheck shellcheck \
+        zip zip
+}
+
 if [[ "$(uname -s)" != "Linux" ]]; then
     printf '%s\n' 'wfcli dependency profiles require Linux' >&2
     exit 1
@@ -14,11 +83,11 @@ fi
 
 case "$profile" in
     build)
-        exec brew bundle install --file="$root/Brewfile.wfcli-build"
+        install_build_dependencies
         ;;
     dev)
-        brew bundle install --file="$root/Brewfile.wfcli-build"
-        exec brew bundle install --file="$root/Brewfile.wfcli-dev"
+        install_build_dependencies
+        install_dev_dependencies
         ;;
     *)
         printf '%s\n' 'usage: brew wfcli-deps build|dev' >&2
