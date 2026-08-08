@@ -4,6 +4,14 @@ Homebrew tap for small tools and development helpers.
 
 ## Install
 
+Install wfcli on Linux x86_64:
+
+```bash
+brew install zeewanderer/sundries/wfcli
+```
+
+## Development
+
 Add the tap and trust its dependency helper:
 
 ```bash
