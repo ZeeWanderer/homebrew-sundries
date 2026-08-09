@@ -7,6 +7,12 @@ on:
     paths:
       - Formula/wfcli.rb
   workflow_dispatch:
+    inputs:
+      clean:
+        description: Rebuild without restoring existing build caches
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -41,8 +47,8 @@ jobs:
           cache_root="$(brew --cache)/wfcli-build"
           {
             echo "WFCLI_BUILD_CACHE_ROOT=${cache_root}"
-            echo "HOMEBREW_DOWNLOAD_CACHE=$(brew --cache)/downloads"
             echo "HOMEBREW_TEMP_ROOT=$(brew ruby -e 'puts HOMEBREW_TEMP')"
+            echo "SCCACHE_DIR=${cache_root}/sccache"
           } >> "$GITHUB_ENV"
           echo "wfcli cache root: ${cache_root}"
           ls -ld "$(brew --cache)" "${cache_root}" 2>/dev/null || true
@@ -51,7 +57,20 @@ jobs:
         run: brew install zstd
 
       - name: Restore wfcli build cache
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.clean != true }}
         id: wfcli-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
+          key: linux-wfcli-build-v3-master-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: linux-wfcli-build-v3-master-
+
+      - name: Migrate previous wfcli build cache
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.clean != true) && steps.wfcli-cache.outputs.cache-matched-key == '' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -60,17 +79,18 @@ jobs:
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: linux-wfcli-build-v2-master-${{ github.run_id }}
+          key: linux-wfcli-build-v2-migration-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             linux-wfcli-build-v2-master-
             linux-wfcli-build-v1-master-
 
-      - name: Restore Homebrew downloads
+      - name: Restore sccache
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.clean != true }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.HOMEBREW_DOWNLOAD_CACHE }}
-          key: linux-homebrew-downloads-v1-master-${{ github.run_id }}
-          restore-keys: linux-homebrew-downloads-v1-master-
+          path: ${{ env.SCCACHE_DIR }}
+          key: linux-wfcli-sccache-v1-master-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: linux-wfcli-sccache-v1-master-
 
       - name: Build wfcli from source
         env:
@@ -105,7 +125,8 @@ jobs:
             echo "vcpkg active ABIs: ${#active_abis[@]}; stale archives removed: ${removed}"
           fi
 
-          brew cleanup --prune=30
+          # A v2 cache may have supplied dependency data during migration.
+          rm -rf "${WFCLI_BUILD_CACHE_ROOT}/ccache"
 
       - name: Inspect wfcli build cache
         id: cache_state
@@ -118,17 +139,15 @@ jobs:
           fi
           echo "wfcli cache contents:"
           ls -la "${WFCLI_BUILD_CACHE_ROOT}"
-          du -sh "${WFCLI_BUILD_CACHE_ROOT}"/*
-          echo "Homebrew downloads:"
-          du -sh "${HOMEBREW_DOWNLOAD_CACHE}"
-          find "${HOMEBREW_DOWNLOAD_CACHE}" -type f | wc -l
+          du -sh "${WFCLI_BUILD_CACHE_ROOT}"/* || true
           archive_count="$(find "${WFCLI_BUILD_CACHE_ROOT}/vcpkg/archives" -type f | wc -l)"
           echo "vcpkg archives: ${archive_count}"
           if test "${archive_count}" -eq 0 && test -f "${make_log}"; then
             grep -E "Failed to store binary cache|failed with exit code|not found" "${make_log}" || true
           fi
           echo "archive_count=${archive_count}" >> "$GITHUB_OUTPUT"
-          ccache --dir "${WFCLI_BUILD_CACHE_ROOT}/ccache" --show-stats
+          sccache --show-stats
+          sccache --stop-server
 
       - name: Verify wfcli build cache
         env:
@@ -139,32 +158,32 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: linux-wfcli-build-v2-master-${{ github.run_id }}
+          key: linux-wfcli-build-v3-master-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Save Homebrew downloads
+      - name: Save sccache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.HOMEBREW_DOWNLOAD_CACHE }}
-          key: linux-homebrew-downloads-v1-master-${{ github.run_id }}
+          path: ${{ env.SCCACHE_DIR }}
+          key: linux-wfcli-sccache-v1-master-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Prune superseded caches
         env:
           GH_TOKEN: ${{ github.token }}
-          CURRENT_BUILD_CACHE_KEY: linux-wfcli-build-v2-master-${{ github.run_id }}
-          CURRENT_DOWNLOAD_CACHE_KEY: linux-homebrew-downloads-v1-master-${{ github.run_id }}
+          CURRENT_BUILD_CACHE_KEY: linux-wfcli-build-v3-master-${{ github.run_id }}-${{ github.run_attempt }}
+          CURRENT_SCCACHE_CACHE_KEY: linux-wfcli-sccache-v1-master-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           mapfile -t cache_ids < <(
             gh cache list --repo "$GITHUB_REPOSITORY" --limit 100 --json id,key \
               --jq '.[] | select(
                 (((.key | startswith("linux-wfcli-build-v")) and (.key | contains("-master-"))) or
+                 (.key | startswith("linux-wfcli-sccache-v1-master-")) or
                  (.key | startswith("linux-homebrew-downloads-v1-master-"))) and
                 .key != env.CURRENT_BUILD_CACHE_KEY and
-                .key != env.CURRENT_DOWNLOAD_CACHE_KEY
+                .key != env.CURRENT_SCCACHE_CACHE_KEY
               ) | .id'
           )
           for cache_id in "${cache_ids[@]}"; do
