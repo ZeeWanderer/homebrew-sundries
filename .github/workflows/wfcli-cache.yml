@@ -100,3 +100,16 @@ jobs:
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
           key: linux-wfcli-build-v1-master-${{ github.sha }}
+
+      - name: Prune superseded wfcli build caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CACHE_KEY: linux-wfcli-build-v1-master-${{ github.sha }}
+        run: |
+          mapfile -t cache_ids < <(
+            gh cache list --repo "$GITHUB_REPOSITORY" --limit 100 --json id,key \
+              --jq '.[] | select((.key | startswith("linux-wfcli-build-v")) and (.key | contains("-master-")) and .key != env.CURRENT_CACHE_KEY) | .id'
+          )
+          for cache_id in "${cache_ids[@]}"; do
+            gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
+          done
