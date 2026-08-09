@@ -70,7 +70,7 @@ case "${1:-}" in
       --jq '[.number, .title, .state, .headRefName, .headRefOid, .url] | @tsv')
     mapfile -t runs < <(waiting_runs "$repo" "$head_sha")
     mapfile -t checks < <(gh pr view "$pr" --repo "$repo" --json statusCheckRollup \
-      --jq '.statusCheckRollup[] | [(.workflowName // "workflow"), .name, (.conclusion // .status)] | @tsv')
+      --jq '.statusCheckRollup[] | [(.workflowName // "workflow"), .name, (if (.conclusion // "") == "" then .status else .conclusion end)] | @tsv')
     failed=0
     pending=0
     printf 'PR %s: %s\n' "$number" "$title"
