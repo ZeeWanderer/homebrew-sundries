@@ -11,6 +11,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: brew-pr-pull
+  cancel-in-progress: false
+
 defaults:
   run:
     shell: bash -xeuo pipefail {0}

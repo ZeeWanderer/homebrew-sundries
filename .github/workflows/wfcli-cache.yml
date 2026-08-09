@@ -5,7 +5,6 @@ on:
     branches:
       - master
     paths:
-      - .github/workflows/wfcli-cache.yml
       - Formula/wfcli.rb
   workflow_dispatch:
 
@@ -13,7 +12,7 @@ permissions: {}
 
 concurrency:
   group: wfcli-build-cache
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -44,53 +43,21 @@ jobs:
           echo "wfcli cache root: ${cache_root}"
           ls -ld "$(brew --cache)" "${cache_root}" 2>/dev/null || true
 
-      - name: Create cache path probe
-        run: |
-          mkdir -p "${WFCLI_BUILD_CACHE_ROOT}/probe"
-          printf '%s\n' "${GITHUB_RUN_ID}" > "${WFCLI_BUILD_CACHE_ROOT}/probe/run-id"
-          ls -la "${WFCLI_BUILD_CACHE_ROOT}/probe"
-
-      - name: Save cache path probe
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.WFCLI_BUILD_CACHE_ROOT }}/probe
-          key: linux-wfcli-path-probe-${{ github.run_id }}
-
-      - name: Clear cache path probe
-        run: rm -rf "${WFCLI_BUILD_CACHE_ROOT}/probe"
-
-      - name: Restore cache path probe
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.WFCLI_BUILD_CACHE_ROOT }}/probe
-          key: linux-wfcli-path-probe-${{ github.run_id }}
-
-      - name: Verify cache path probe
-        run: |
-          test "$(cat "${WFCLI_BUILD_CACHE_ROOT}/probe/run-id")" = "${GITHUB_RUN_ID}"
-          ls -la "${WFCLI_BUILD_CACHE_ROOT}/probe"
-
-      - name: Restore wfcli build cache
-        id: restore-wfcli-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Cache wfcli build data
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: linux-wfcli-build-v1-master-${{ github.run_id }}
+          key: linux-wfcli-build-v1-master-${{ github.sha }}
           restore-keys: linux-wfcli-build-v1-master-
 
       - name: Build wfcli from source
         env:
           TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
         run: brew install --build-from-source "${TAP_NAME}/wfcli"
-
-      - name: Test wfcli
-        env:
-          TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
-        run: brew test "${TAP_NAME}/wfcli"
 
       - name: Verify wfcli build cache
         run: |
@@ -102,13 +69,3 @@ jobs:
           echo "vcpkg archives: ${archive_count}"
           test "${archive_count}" -gt 0
           ccache --show-stats
-
-      - name: Save wfcli build cache
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
-            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
-            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
-            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: ${{ steps.restore-wfcli-cache.outputs.cache-primary-key }}

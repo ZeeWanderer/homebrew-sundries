@@ -2,15 +2,14 @@ name: brew bump
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - .github/workflows/autobump.yml
   schedule:
     - cron: "35 3 * * *"
 
 permissions: {}
+
+concurrency:
+  group: brew-bump
+  cancel-in-progress: true
 
 defaults:
   run:
