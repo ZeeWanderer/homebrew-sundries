@@ -68,11 +68,7 @@ class Wfcli < Formula
 
   def install
     ENV.llvm_clang
-    cache_root = if ENV["WFCLI_BUILD_CACHE_ROOT"].to_s.empty?
-      buildpath/".cache"
-    else
-      Pathname.new(ENV["WFCLI_BUILD_CACHE_ROOT"])
-    end
+    cache_root = HOMEBREW_CACHE/"wfcli-build"
     cache_root.mkpath
     ln_s cache_root, buildpath/".cache" if cache_root != buildpath/".cache"
 

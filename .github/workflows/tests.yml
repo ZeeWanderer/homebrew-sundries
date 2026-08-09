@@ -18,8 +18,6 @@ jobs:
     container:
       image: ghcr.io/homebrew/brew:main # zizmor: ignore[unpinned-images]
       options: --privileged
-    env:
-      WFCLI_BUILD_CACHE_ROOT: ${{ github.workspace }}/.ci-cache/wfcli
     permissions:
       actions: read
       checks: read
@@ -39,6 +37,9 @@ jobs:
           path: ${{ steps.set-up-homebrew.outputs.gems-path }}
           key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
           restore-keys: ${{ runner.os }}-rubygems-
+
+      - name: Locate wfcli build cache
+        run: echo "WFCLI_BUILD_CACHE_ROOT=$(brew --cache)/wfcli-build" >> "$GITHUB_ENV"
 
       - name: Restore wfcli build cache
         if: github.event_name == 'pull_request'

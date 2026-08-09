@@ -30,14 +30,15 @@ jobs:
       actions: write
       contents: read
       packages: read
-    env:
-      WFCLI_BUILD_CACHE_ROOT: ${{ github.workspace }}/.ci-cache/wfcli
     steps:
       - name: Set up Homebrew
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@fd832223f9f99ebf0244dd20658680e5d4aca049 # 2026.08.03.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Locate wfcli build cache
+        run: echo "WFCLI_BUILD_CACHE_ROOT=$(brew --cache)/wfcli-build" >> "$GITHUB_ENV"
 
       - name: Restore wfcli build cache
         id: restore-wfcli-cache
@@ -60,6 +61,11 @@ jobs:
         env:
           TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
         run: brew test "${TAP_NAME}/wfcli"
+
+      - name: Verify wfcli build cache
+        run: |
+          test -n "$(find "${WFCLI_BUILD_CACHE_ROOT}/vcpkg/archives" -type f -print -quit)"
+          du -sh "${WFCLI_BUILD_CACHE_ROOT}"
 
       - name: Save wfcli build cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
