@@ -3,9 +3,17 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
+Manage formula update PRs for this Homebrew tap.
+
 Usage:
+  ./tap list
   ./tap bump
   ./tap publish PR
+
+Commands:
+  list        List open formula update PRs created by brew bump.
+  bump        Run brew bump now. It checks formula sources and opens update PRs.
+  publish PR  Verify PR checks, then publish its bottles and merge it into master.
 
 Environment:
   GH_REPO  tap repository override
@@ -21,6 +29,18 @@ repo_name() {
 }
 
 case "${1:-}" in
+  list)
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    prs="$(gh pr list --repo "$repo" --state open --limit 100 \
+      --json number,title,headRefName,url \
+      --jq '.[] | select(.headRefName | startswith("bump-")) | "#\(.number)  \(.title)  \(.url)"')"
+    if [[ -n "$prs" ]]; then
+      printf '%s\n' "$prs"
+    else
+      printf 'No open formula update PRs.\n'
+    fi
+    ;;
   bump)
     [[ $# -eq 1 ]] || { usage >&2; exit 2; }
     repo="$(repo_name)"
