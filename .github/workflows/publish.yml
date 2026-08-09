@@ -60,3 +60,17 @@ jobs:
         uses: Homebrew/actions/git-try-push@fd832223f9f99ebf0244dd20658680e5d4aca049 # 2026.08.03.2
         with:
           branch: master
+
+      - name: Delete published update branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: |
+          mapfile -t head < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST" \
+            --jq '.head.repo.full_name, .head.ref, .head.sha')
+          [[ "${head[0]}" == "$GITHUB_REPOSITORY" ]]
+          [[ "${head[1]}" == bump-* ]]
+          [[ -z "$HEAD_SHA" || "${head[2]}" == "$HEAD_SHA" ]]
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/git/refs/heads/${head[1]}"
