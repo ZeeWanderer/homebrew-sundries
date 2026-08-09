@@ -13,8 +13,8 @@ on:
       - .github/workflows/tests.yml
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: wfcli-build-cache
+  cancel-in-progress: false
 
 permissions: {}
 
