@@ -67,7 +67,6 @@ jobs:
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
           key: linux-wfcli-build-v1-pr-${{ github.run_id }}
           restore-keys: linux-wfcli-build-v1-master-
-          fail-on-cache-miss: true
 
       - run: brew test-bot --only-cleanup-before
 

@@ -23,13 +23,27 @@ jobs:
   pr-pull:
     runs-on: ubuntu-latest
     permissions:
-      actions: read
+      actions: write
       checks: read
       contents: write
       issues: read
       packages: write
       pull-requests: write
     steps:
+      - name: Verify publication request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: |
+          mapfile -t pr < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST" \
+            --jq '.state, .head.repo.full_name, .head.ref, .head.sha')
+          [[ "${pr[0]}" == open ]]
+          [[ "${pr[1]}" == "$GITHUB_REPOSITORY" ]]
+          [[ "${pr[2]}" == bump-* ]]
+          [[ -z "$HEAD_SHA" || "${pr[3]}" == "$HEAD_SHA" ]]
+          gh pr checks "$PULL_REQUEST" --repo "$GITHUB_REPOSITORY"
+
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@fd832223f9f99ebf0244dd20658680e5d4aca049 # 2026.08.03.2
         with:
@@ -74,3 +88,8 @@ jobs:
           [[ -z "$HEAD_SHA" || "${head[2]}" == "$HEAD_SHA" ]]
           gh api --method DELETE \
             "repos/$GITHUB_REPOSITORY/git/refs/heads/${head[1]}"
+
+      - name: Warm wfcli build cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run wfcli-cache.yml --repo "$GITHUB_REPOSITORY" --ref master
