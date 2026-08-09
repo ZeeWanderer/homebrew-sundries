@@ -2,8 +2,8 @@ class Wfcli < Formula
   desc "Warframe toolkit for terminal, desktop, MCP, and Linux/Proton overlays"
   homepage "https://github.com/ZeeWanderer/wfcli"
   url "https://github.com/ZeeWanderer/wfcli.git",
-      tag:      "v0.1.1",
-      revision: "0ed359cd4c3f2aab8d65b4adbb054c5452e1ecd6"
+      tag:      "v0.1.3",
+      revision: "819713e2613df4ed025a42c241822a3081e3dd8a"
   license "Apache-2.0"
   head "https://github.com/ZeeWanderer/wfcli.git", branch: "master"
 
@@ -17,6 +17,7 @@ class Wfcli < Formula
   depends_on "automake" => :build
   depends_on "ccache" => :build
   depends_on "cmake" => :build
+  depends_on "erlang" => :build
   depends_on "libtool" => :build
   depends_on "llvm" => :build
   depends_on "mingw-w64" => :build
@@ -28,10 +29,8 @@ class Wfcli < Formula
   depends_on "vcpkg" => :build
   depends_on "zip" => :build
   depends_on arch: :x86_64
-  depends_on "erlang"
   depends_on "libxkbcommon"
   depends_on :linux
-  depends_on "mesa"
   depends_on "ncurses"
   depends_on "openssl@3"
   depends_on "tesseract"
@@ -100,7 +99,7 @@ class Wfcli < Formula
            "LLVM_ROOT=#{formula_opt_prefix("llvm")}",
            "NINJA=#{formula_opt_bin("ninja")}/ninja"
 
-    gui_rpath = %w[libxkbcommon mesa wayland].map { |dependency| formula_opt_lib(dependency) }.join(File::PATH_SEPARATOR)
+    gui_rpath = %w[libxkbcommon wayland].map { |dependency| formula_opt_lib(dependency) }.join(File::PATH_SEPARATOR)
     system "patchelf", "--set-rpath", "#{gui_rpath}:$ORIGIN:$ORIGIN/../lib", "prod/bin/wfgui"
     Dir["prod/Qt6/plugins/**/*.so", "prod/lib/libQt6*.so.*"].each do |object|
       next if File.symlink?(object)
@@ -117,9 +116,10 @@ class Wfcli < Formula
   end
 
   test do
-    assert_match "COMMANDS:", shell_output("#{bin}/wfcli --help")
+    assert_match "COMMANDS:", shell_output("env PATH=/usr/bin:/bin #{bin}/wfcli --help")
     assert_match "Linux/Proton", shell_output("#{bin}/wfcompanion --help")
     assert_predicate bin/"wfgui", :executable?
     assert_predicate libexec/"libexec/wfdaemon/bin/wfdaemon", :executable?
+    assert_equal 1, Dir[libexec/"libexec/wfdaemon/erts-*/bin/epmd"].length
   end
 end
