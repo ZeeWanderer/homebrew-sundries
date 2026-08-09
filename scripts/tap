@@ -8,11 +8,13 @@ Manage formula update PRs for this Homebrew tap.
 Usage:
   ./tap list
   ./tap bump
+  ./tap close PR
   ./tap publish PR
 
 Commands:
   list        List open formula update PRs created by brew bump.
   bump        Run brew bump now. It checks formula sources and opens update PRs.
+  close PR    Close an unwanted formula update PR and delete its branch.
   publish PR  Verify PR checks, then publish its bottles and merge it into master.
 
 Environment:
@@ -46,6 +48,23 @@ case "${1:-}" in
     repo="$(repo_name)"
     gh workflow run autobump.yml --repo "$repo"
     printf 'Started formula bump: https://github.com/%s/actions/workflows/autobump.yml\n' "$repo"
+    ;;
+  close)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    pr="$2"
+    read -r state branch title < <(gh pr view "$pr" --repo "$repo" \
+      --json state,headRefName,title \
+      --jq '[.state, .headRefName, .title] | @tsv')
+    [[ "$state" == OPEN ]] || { printf 'PR %s is not open\n' "$pr" >&2; exit 1; }
+    [[ "$branch" == bump-* ]] || {
+      printf 'PR %s is not a formula update PR (%s)\n' "$pr" "$branch" >&2
+      exit 1
+    }
+    printf 'Close PR %s (%s)? [y/N] ' "$pr" "$title"
+    read -r answer
+    [[ "$answer" == y || "$answer" == Y ]] || exit 1
+    gh pr close "$pr" --repo "$repo" --delete-branch
     ;;
   publish)
     [[ $# -eq 2 ]] || { usage >&2; exit 2; }
