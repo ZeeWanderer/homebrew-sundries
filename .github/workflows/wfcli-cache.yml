@@ -39,7 +39,11 @@ jobs:
       - name: Locate wfcli build cache
         run: |
           cache_root="$(brew --cache)/wfcli-build"
-          echo "WFCLI_BUILD_CACHE_ROOT=${cache_root}" >> "$GITHUB_ENV"
+          {
+            echo "WFCLI_BUILD_CACHE_ROOT=${cache_root}"
+            echo "HOMEBREW_DOWNLOAD_CACHE=$(brew --cache)/downloads"
+            echo "HOMEBREW_TEMP_ROOT=$(brew ruby -e 'puts HOMEBREW_TEMP')"
+          } >> "$GITHUB_ENV"
           echo "wfcli cache root: ${cache_root}"
           ls -ld "$(brew --cache)" "${cache_root}" 2>/dev/null || true
 
@@ -56,13 +60,52 @@ jobs:
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: linux-wfcli-build-v1-master-${{ github.sha }}
-          restore-keys: linux-wfcli-build-v1-master-
+          key: linux-wfcli-build-v2-master-${{ github.run_id }}
+          restore-keys: |
+            linux-wfcli-build-v2-master-
+            linux-wfcli-build-v1-master-
+
+      - name: Restore Homebrew downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.HOMEBREW_DOWNLOAD_CACHE }}
+          key: linux-homebrew-downloads-v1-master-${{ github.run_id }}
+          restore-keys: linux-homebrew-downloads-v1-master-
 
       - name: Build wfcli from source
         env:
           TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
-        run: brew install --verbose --build-from-source "${TAP_NAME}/wfcli"
+        run: brew install --verbose --build-from-source --keep-tmp "${TAP_NAME}/wfcli"
+
+      - name: Prune build caches
+        run: |
+          declare -A active_abis=()
+          while IFS= read -r -d '' abi_info; do
+            abi="$(sha256sum "${abi_info}" | cut -d ' ' -f 1)"
+            active_abis["${abi}"]=1
+          done < <(
+            find "${HOMEBREW_TEMP_ROOT}" \
+              -path '*/_build/vcpkg_installed/*/share/*/vcpkg_abi_info.txt' \
+              -type f -print0
+          )
+
+          if test "${#active_abis[@]}" -eq 0; then
+            echo "warning: no active vcpkg ABI records found; skipping archive prune"
+          else
+            removed=0
+            shopt -s nullglob
+            for archive in "${WFCLI_BUILD_CACHE_ROOT}"/vcpkg/archives/*/*.zip; do
+              abi="$(basename "${archive}" .zip)"
+              if test -z "${active_abis[$abi]+present}"; then
+                rm -f "${archive}"
+                removed=$((removed + 1))
+              fi
+            done
+            find "${WFCLI_BUILD_CACHE_ROOT}/vcpkg/archives" -mindepth 1 -type d -empty -delete
+            echo "vcpkg active ABIs: ${#active_abis[@]}; stale archives removed: ${removed}"
+          fi
+
+          brew cleanup --prune=30
 
       - name: Inspect wfcli build cache
         id: cache_state
@@ -76,6 +119,9 @@ jobs:
           echo "wfcli cache contents:"
           ls -la "${WFCLI_BUILD_CACHE_ROOT}"
           du -sh "${WFCLI_BUILD_CACHE_ROOT}"/*
+          echo "Homebrew downloads:"
+          du -sh "${HOMEBREW_DOWNLOAD_CACHE}"
+          find "${HOMEBREW_DOWNLOAD_CACHE}" -type f | wc -l
           archive_count="$(find "${WFCLI_BUILD_CACHE_ROOT}/vcpkg/archives" -type f | wc -l)"
           echo "vcpkg archives: ${archive_count}"
           if test "${archive_count}" -eq 0 && test -f "${make_log}"; then
@@ -90,7 +136,6 @@ jobs:
         run: test "${ARCHIVE_COUNT}" -gt 0
 
       - name: Save wfcli build cache
-        if: steps.wfcli-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -99,16 +144,28 @@ jobs:
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: linux-wfcli-build-v1-master-${{ github.sha }}
+          key: linux-wfcli-build-v2-master-${{ github.run_id }}
 
-      - name: Prune superseded wfcli build caches
+      - name: Save Homebrew downloads
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.HOMEBREW_DOWNLOAD_CACHE }}
+          key: linux-homebrew-downloads-v1-master-${{ github.run_id }}
+
+      - name: Prune superseded caches
         env:
           GH_TOKEN: ${{ github.token }}
-          CURRENT_CACHE_KEY: linux-wfcli-build-v1-master-${{ github.sha }}
+          CURRENT_BUILD_CACHE_KEY: linux-wfcli-build-v2-master-${{ github.run_id }}
+          CURRENT_DOWNLOAD_CACHE_KEY: linux-homebrew-downloads-v1-master-${{ github.run_id }}
         run: |
           mapfile -t cache_ids < <(
             gh cache list --repo "$GITHUB_REPOSITORY" --limit 100 --json id,key \
-              --jq '.[] | select((.key | startswith("linux-wfcli-build-v")) and (.key | contains("-master-")) and .key != env.CURRENT_CACHE_KEY) | .id'
+              --jq '.[] | select(
+                (((.key | startswith("linux-wfcli-build-v")) and (.key | contains("-master-"))) or
+                 (.key | startswith("linux-homebrew-downloads-v1-master-"))) and
+                .key != env.CURRENT_BUILD_CACHE_KEY and
+                .key != env.CURRENT_DOWNLOAD_CACHE_KEY
+              ) | .id'
           )
           for cache_id in "${cache_ids[@]}"; do
             gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"

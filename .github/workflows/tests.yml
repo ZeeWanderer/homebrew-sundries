@@ -49,7 +49,11 @@ jobs:
           restore-keys: ${{ runner.os }}-rubygems-
 
       - name: Locate wfcli build cache
-        run: echo "WFCLI_BUILD_CACHE_ROOT=$(brew --cache)/wfcli-build" >> "$GITHUB_ENV"
+        run: |
+          {
+            echo "WFCLI_BUILD_CACHE_ROOT=$(brew --cache)/wfcli-build"
+            echo "HOMEBREW_DOWNLOAD_CACHE=$(brew --cache)/downloads"
+          } >> "$GITHUB_ENV"
 
       - name: Install cache compressor
         if: github.event_name == 'pull_request'
@@ -65,8 +69,18 @@ jobs:
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
-          key: linux-wfcli-build-v1-pr-${{ github.run_id }}
-          restore-keys: linux-wfcli-build-v1-master-
+          key: linux-wfcli-build-v2-pr-${{ github.run_id }}
+          restore-keys: |
+            linux-wfcli-build-v2-master-
+            linux-wfcli-build-v1-master-
+
+      - name: Restore Homebrew downloads
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.HOMEBREW_DOWNLOAD_CACHE }}
+          key: linux-homebrew-downloads-v1-pr-${{ github.run_id }}
+          restore-keys: linux-homebrew-downloads-v1-master-
 
       - run: brew test-bot --only-cleanup-before
 
