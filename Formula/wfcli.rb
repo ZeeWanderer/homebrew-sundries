@@ -2,15 +2,10 @@ class Wfcli < Formula
   desc "Warframe toolkit for terminal, desktop, MCP, and Linux/Proton overlays"
   homepage "https://github.com/ZeeWanderer/wfcli"
   url "https://github.com/ZeeWanderer/wfcli.git",
-      tag:      "v0.1.0",
-      revision: "5d9b15e9b8ac59cea3bb7ea6a713a2de0118bb71"
+      tag:      "v0.1.1",
+      revision: "0ed359cd4c3f2aab8d65b4adbb054c5452e1ecd6"
   license "Apache-2.0"
   head "https://github.com/ZeeWanderer/wfcli.git", branch: "master"
-
-  bottle do
-    root_url "https://ghcr.io/v2/zeewanderer/sundries"
-    sha256 cellar: :any, x86_64_linux: "ae65736941313a3cb2669300a434ee7bff7a539ab7737f63c36a93bd30ed0d14"
-  end
 
   depends_on "autoconf" => :build
   depends_on "autoconf-archive" => :build
@@ -38,6 +33,31 @@ class Wfcli < Formula
   resource "vcpkg-registry" do
     url "https://github.com/microsoft/vcpkg.git",
         revision: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  end
+
+  service do
+    state_dir = Pathname.new(Dir.home)/".local/state/wfcli"
+    log_dir = Pathname.new(Dir.home)/".cache/wfcli/daemon-log"
+    name linux: "wfdaemon"
+    run [opt_libexec/"bin/wfdaemon", "foreground"]
+    keep_alive crashed: true
+    restart_delay 2
+    working_dir state_dir
+    log_path log_dir/"wfdaemon.log"
+    error_log_path log_dir/"wfdaemon.log"
+    environment_variables(
+      WFCLI_PACKAGE_MANAGER:      "homebrew",
+      WFCLI_DAEMON_IDLE_POLICY:   "persistent",
+      WFCLI_BUILD_FLAVOR:         "prod",
+      WFCLI_INSTALL_ROOT:         opt_libexec,
+      WFCLI_UPDATE_ROOT:          opt_libexec,
+      RUNNER_LOG_DIR:             log_dir,
+      ERL_CRASH_DUMP:             state_dir/"erl_crash.dump",
+      LD_PRELOAD:                 "",
+      LD_LIBRARY_PATH:            "",
+      STEAM_RUNTIME:              "",
+      STEAM_RUNTIME_LIBRARY_PATH: "",
+    )
   end
 
   def install
