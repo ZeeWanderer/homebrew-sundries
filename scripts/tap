@@ -8,12 +8,16 @@ Manage formula update PRs for this Homebrew tap.
 Usage:
   ./tap list
   ./tap bump
+  ./tap state PR
+  ./tap approve PR
   ./tap close PR
   ./tap publish PR
 
 Commands:
   list        List open formula update PRs created by brew bump.
   bump        Run brew bump now. It checks formula sources and opens update PRs.
+  state PR    Show formula PR checks and next workflow action.
+  approve PR  Approve waiting workflow runs for a formula update PR.
   close PR    Close an unwanted formula update PR and delete its branch.
   publish PR  Verify PR checks, then publish its bottles and merge it into master.
 
@@ -28,6 +32,14 @@ repo_name() {
   else
     gh repo view --json nameWithOwner --jq .nameWithOwner
   fi
+}
+
+waiting_runs() {
+  local repo="$1"
+  local head_sha="$2"
+  gh api --paginate \
+    "repos/$repo/actions/runs?head_sha=$head_sha&event=pull_request&per_page=100" \
+    --jq '.workflow_runs[] | select(.status == "waiting" or .conclusion == "action_required") | [.id, .name, .html_url] | @tsv'
 }
 
 case "${1:-}" in
@@ -48,6 +60,75 @@ case "${1:-}" in
     repo="$(repo_name)"
     gh workflow run autobump.yml --repo "$repo"
     printf 'Started formula bump: https://github.com/%s/actions/workflows/autobump.yml\n' "$repo"
+    ;;
+  state)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    pr="$2"
+    IFS=$'\t' read -r number title state branch head_sha url < <(gh pr view "$pr" --repo "$repo" \
+      --json number,title,state,headRefName,headRefOid,url \
+      --jq '[.number, .title, .state, .headRefName, .headRefOid, .url] | @tsv')
+    mapfile -t runs < <(waiting_runs "$repo" "$head_sha")
+    mapfile -t checks < <(gh pr view "$pr" --repo "$repo" --json statusCheckRollup \
+      --jq '.statusCheckRollup[] | [(.workflowName // "workflow"), .name, (.conclusion // .status)] | @tsv')
+    failed=0
+    pending=0
+    printf 'PR %s: %s\n' "$number" "$title"
+    printf '  state: %s\n  branch: %s\n  head: %s\n  url: %s\n' \
+      "${state,,}" "$branch" "$head_sha" "$url"
+    if ((${#checks[@]} == 0)); then
+      printf '  checks: none\n'
+    else
+      printf '  checks:\n'
+      for check in "${checks[@]}"; do
+        IFS=$'\t' read -r workflow name result <<<"$check"
+        printf '    %s / %s: %s\n' "$workflow" "$name" "${result,,}"
+        case "$result" in
+          SUCCESS|SKIPPED|NEUTRAL) ;;
+          FAILURE|CANCELLED|TIMED_OUT|STARTUP_FAILURE|STALE) failed=1 ;;
+          *) pending=1 ;;
+        esac
+      done
+    fi
+    if [[ "$state" != OPEN ]]; then
+      printf '  next: none\n'
+    elif ((${#runs[@]} > 0)); then
+      printf '  next: ./tap approve %s\n' "$pr"
+    elif ((failed)); then
+      printf '  next: fix or rerun failed checks\n'
+    elif ((pending)) || ((${#checks[@]} == 0)); then
+      printf '  next: wait for checks\n'
+    else
+      printf '  next: ./tap publish %s\n' "$pr"
+    fi
+    ;;
+  approve)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    pr="$2"
+    read -r state branch head_sha < <(gh pr view "$pr" --repo "$repo" \
+      --json state,headRefName,headRefOid \
+      --jq '[.state, .headRefName, .headRefOid] | @tsv')
+    [[ "$state" == OPEN ]] || { printf 'PR %s is not open\n' "$pr" >&2; exit 1; }
+    [[ "$branch" == bump-* ]] || {
+      printf 'PR %s is not a formula update PR (%s)\n' "$pr" "$branch" >&2
+      exit 1
+    }
+    mapfile -t runs < <(waiting_runs "$repo" "$head_sha")
+    ((${#runs[@]} > 0)) || {
+      printf 'No workflow runs await approval for PR %s.\n' "$pr"
+      exit 0
+    }
+    printf 'Waiting workflow runs for PR %s:\n' "$pr"
+    printf '  %s\n' "${runs[@]}"
+    printf 'Approve %s workflow run(s)? [y/N] ' "${#runs[@]}"
+    read -r answer
+    [[ "$answer" == y || "$answer" == Y ]] || exit 1
+    for run in "${runs[@]}"; do
+      IFS=$'\t' read -r run_id _name _url <<<"$run"
+      gh api --method POST "repos/$repo/actions/runs/$run_id/approve" >/dev/null
+      printf 'Approved workflow run %s.\n' "$run_id"
+    done
     ;;
   close)
     [[ $# -eq 2 ]] || { usage >&2; exit 2; }
