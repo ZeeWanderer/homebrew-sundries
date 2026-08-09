@@ -9,7 +9,7 @@ class Wfcli < Formula
 
   bottle do
     root_url "https://ghcr.io/v2/zeewanderer/sundries"
-    sha256 cellar: :any, x86_64_linux: "c125f4eb6dc7eb5f3e8d4387d9ef65e0177ea48ad70d2f439ab19ebc092598f1"
+    sha256 cellar: :any, x86_64_linux: "87737028b354f8ff202fb54aa33e2ba377bb989151f9eef7aa0f83c0347b36d1"
   end
 
   depends_on "autoconf" => :build
