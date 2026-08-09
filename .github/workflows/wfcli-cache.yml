@@ -79,7 +79,7 @@ jobs:
             grep -E "Failed to store binary cache|failed with exit code|not found" "${make_log}" || true
           fi
           echo "archive_count=${archive_count}" >> "$GITHUB_OUTPUT"
-          ccache --show-stats
+          ccache --dir "${WFCLI_BUILD_CACHE_ROOT}/ccache" --show-stats
 
       - name: Verify wfcli build cache
         env:
