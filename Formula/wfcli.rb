@@ -20,11 +20,13 @@ class Wfcli < Formula
   depends_on "libtool" => :build
   depends_on "llvm" => :build
   depends_on "mingw-w64" => :build
+  depends_on "ninja" => :build
   depends_on "patchelf" => :build
   depends_on "pkgconf" => :build
   depends_on "rebar3" => :build
   depends_on "rust" => :build
   depends_on "vcpkg" => :build
+  depends_on "zip" => :build
   depends_on arch: :x86_64
   depends_on "erlang"
   depends_on "libxkbcommon"
