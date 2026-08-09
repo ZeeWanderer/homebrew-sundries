@@ -10,6 +10,7 @@ Usage:
   ./tap bump
   ./tap state PR
   ./tap approve PR
+  ./tap retry PR
   ./tap close PR
   ./tap publish PR
 
@@ -18,8 +19,9 @@ Commands:
   bump        Run brew bump now. It checks formula sources and opens update PRs.
   state PR    Show formula PR checks and next workflow action.
   approve PR  Approve waiting workflow runs for a formula update PR.
+  retry PR    Rerun failed checks for the current formula PR commit.
   close PR    Close an unwanted formula update PR and delete its branch.
-  publish PR  Verify PR checks, then publish its bottles and merge it into master.
+  publish PR  Verify PR checks, then publish bottles and apply the formula to master.
 
 Environment:
   GH_REPO  tap repository override
@@ -40,6 +42,14 @@ waiting_runs() {
   gh api --paginate \
     "repos/$repo/actions/runs?head_sha=$head_sha&event=pull_request&per_page=100" \
     --jq '.workflow_runs[] | select(.status == "waiting" or .conclusion == "action_required") | [.id, .name, .html_url] | @tsv'
+}
+
+failed_run() {
+  local repo="$1"
+  local head_sha="$2"
+  gh api \
+    "repos/$repo/actions/runs?head_sha=$head_sha&event=pull_request&per_page=100" \
+    --jq '.workflow_runs | sort_by(.run_number) | last | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out" or .conclusion == "startup_failure") | [.id, .name, .conclusion, .html_url] | @tsv'
 }
 
 case "${1:-}" in
@@ -95,7 +105,7 @@ case "${1:-}" in
     elif ((${#runs[@]} > 0)); then
       printf '  next: ./tap approve %s\n' "$pr"
     elif ((failed)); then
-      printf '  next: fix or rerun failed checks\n'
+      printf '  next: fix the failure or ./tap retry %s\n' "$pr"
     elif ((pending)) || ((${#checks[@]} == 0)); then
       printf '  next: wait for checks\n'
     else
@@ -129,6 +139,30 @@ case "${1:-}" in
       gh api --method POST "repos/$repo/actions/runs/$run_id/approve" >/dev/null
       printf 'Approved workflow run %s.\n' "$run_id"
     done
+    ;;
+  retry)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    pr="$2"
+    read -r state branch head_sha < <(gh pr view "$pr" --repo "$repo" \
+      --json state,headRefName,headRefOid \
+      --jq '[.state, .headRefName, .headRefOid] | @tsv')
+    [[ "$state" == OPEN ]] || { printf 'PR %s is not open\n' "$pr" >&2; exit 1; }
+    [[ "$branch" == bump-* ]] || {
+      printf 'PR %s is not a formula update PR (%s)\n' "$pr" "$branch" >&2
+      exit 1
+    }
+    run="$(failed_run "$repo" "$head_sha")"
+    [[ -n "$run" ]] || {
+      printf 'No failed workflow run for PR %s at %s.\n' "$pr" "$head_sha"
+      exit 0
+    }
+    IFS=$'\t' read -r run_id name conclusion url <<<"$run"
+    printf 'Rerun %s (%s) for PR %s? [y/N] ' "$name" "$conclusion" "$pr"
+    read -r answer
+    [[ "$answer" == y || "$answer" == Y ]] || exit 1
+    gh run rerun "$run_id" --repo "$repo"
+    printf 'Rerunning workflow: %s\n' "$url"
     ;;
   close)
     [[ $# -eq 2 ]] || { usage >&2; exit 2; }
