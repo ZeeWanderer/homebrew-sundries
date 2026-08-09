@@ -7,6 +7,7 @@ Manage formula update PRs for this Homebrew tap.
 
 Usage:
   ./tap list
+  ./tap open [PR]
   ./tap bump
   ./tap state PR
   ./tap approve PR
@@ -16,6 +17,7 @@ Usage:
 
 Commands:
   list        List open formula update PRs created by brew bump.
+  open [PR]   Open a formula PR, or the tap repository when PR is omitted.
   bump        Run brew bump now. It checks formula sources and opens update PRs.
   state PR    Show formula PR checks and next workflow action.
   approve PR  Approve waiting workflow runs for a formula update PR.
@@ -63,6 +65,15 @@ case "${1:-}" in
       printf '%s\n' "$prs"
     else
       printf 'No open formula update PRs.\n'
+    fi
+    ;;
+  open)
+    [[ $# -le 2 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    if [[ $# -eq 2 ]]; then
+      gh pr view "$2" --repo "$repo" --web
+    else
+      gh repo view "$repo" --web
     fi
     ;;
   bump)
