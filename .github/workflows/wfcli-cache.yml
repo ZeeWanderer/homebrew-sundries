@@ -49,6 +49,7 @@ jobs:
             echo "WFCLI_BUILD_CACHE_ROOT=${cache_root}"
             echo "HOMEBREW_TEMP_ROOT=$(brew ruby -e 'puts HOMEBREW_TEMP')"
             echo "SCCACHE_DIR=${cache_root}/sccache"
+            echo "SCCACHE_SERVER_UDS=${cache_root}/sccache.sock"
           } >> "$GITHUB_ENV"
           echo "wfcli cache root: ${cache_root}"
           ls -ld "$(brew --cache)" "${cache_root}" 2>/dev/null || true

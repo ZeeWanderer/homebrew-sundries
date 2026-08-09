@@ -71,6 +71,7 @@ class Wfcli < Formula
     ENV.llvm_clang
     cache_root = HOMEBREW_CACHE/"wfcli-build"
     sccache_dir = cache_root/"sccache"
+    sccache_socket = cache_root/"sccache.sock"
     vcpkg_archives = cache_root/"vcpkg/archives"
     vcpkg_downloads = cache_root/"vcpkg/downloads"
     cache_root.mkpath
@@ -102,6 +103,7 @@ class Wfcli < Formula
     ENV["SCCACHE_BASEDIRS"] = buildpath
     ENV["SCCACHE_CACHE_SIZE"] = "2G"
     ENV["SCCACHE_DIR"] = sccache_dir
+    ENV["SCCACHE_SERVER_UDS"] = sccache_socket
     ENV["VCPKG_DOWNLOADS"] = vcpkg_downloads
     ENV["VCPKG_ROOT"] = vcpkg_root
 
