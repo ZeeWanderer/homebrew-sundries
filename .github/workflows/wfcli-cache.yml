@@ -62,7 +62,7 @@ jobs:
       - name: Build wfcli from source
         env:
           TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
-        run: brew install --build-from-source "${TAP_NAME}/wfcli"
+        run: brew install --verbose --build-from-source "${TAP_NAME}/wfcli"
 
       - name: Inspect wfcli build cache
         id: cache_state
