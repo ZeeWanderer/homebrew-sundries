@@ -14,16 +14,12 @@ defaults:
 
 jobs:
   test-bot:
-    strategy:
-      matrix:
-        os: [macos-26]
-        include:
-          - os: ubuntu-latest
-            container:
-              image: ghcr.io/homebrew/brew:main
-              options: --privileged
-    runs-on: ${{ matrix.os }}
-    container: ${{ fromJSON(toJSON(matrix.container)) }} # zizmor: ignore[unpinned-images]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/homebrew/brew:main # zizmor: ignore[unpinned-images]
+      options: --privileged
+    env:
+      WFCLI_BUILD_CACHE_ROOT: ${{ github.workspace }}/.ci-cache/wfcli
     permissions:
       actions: read
       checks: read
@@ -41,8 +37,20 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.set-up-homebrew.outputs.gems-path }}
-          key: ${{ matrix.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
-          restore-keys: ${{ matrix.os }}-rubygems-
+          key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
+          restore-keys: ${{ runner.os }}-rubygems-
+
+      - name: Restore wfcli build cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
+          key: linux-wfcli-build-v1-pr-${{ github.run_id }}
+          restore-keys: linux-wfcli-build-v1-master-
 
       - run: brew test-bot --only-cleanup-before
 
@@ -69,5 +77,5 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bottles_${{ matrix.os }}
+          name: bottles_linux
           path: '*.bottle.*'

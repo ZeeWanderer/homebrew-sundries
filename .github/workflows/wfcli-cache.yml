@@ -1,0 +1,72 @@
+name: warm wfcli build cache
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/wfcli-cache.yml
+      - Formula/wfcli.rb
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: wfcli-build-cache
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/homebrew/brew:main # zizmor: ignore[unpinned-images]
+      options: --privileged
+    permissions:
+      actions: write
+      contents: read
+      packages: read
+    env:
+      WFCLI_BUILD_CACHE_ROOT: ${{ github.workspace }}/.ci-cache/wfcli
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@fd832223f9f99ebf0244dd20658680e5d4aca049 # 2026.08.03.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore wfcli build cache
+        id: restore-wfcli-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
+          key: linux-wfcli-build-v1-master-${{ github.run_id }}
+          restore-keys: linux-wfcli-build-v1-master-
+
+      - name: Build wfcli from source
+        env:
+          TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
+        run: brew install --build-from-source "${TAP_NAME}/wfcli"
+
+      - name: Test wfcli
+        env:
+          TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
+        run: brew test "${TAP_NAME}/wfcli"
+
+      - name: Save wfcli build cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
+          key: ${{ steps.restore-wfcli-cache.outputs.cache-primary-key }}

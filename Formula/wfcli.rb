@@ -15,6 +15,7 @@ class Wfcli < Formula
   depends_on "autoconf" => :build
   depends_on "autoconf-archive" => :build
   depends_on "automake" => :build
+  depends_on "ccache" => :build
   depends_on "cmake" => :build
   depends_on "libtool" => :build
   depends_on "llvm" => :build
@@ -67,6 +68,14 @@ class Wfcli < Formula
 
   def install
     ENV.llvm_clang
+    cache_root = if ENV["WFCLI_BUILD_CACHE_ROOT"].to_s.empty?
+      buildpath/".cache"
+    else
+      Pathname.new(ENV["WFCLI_BUILD_CACHE_ROOT"])
+    end
+    cache_root.mkpath
+    ln_s cache_root, buildpath/".cache" if cache_root != buildpath/".cache"
+
     vcpkg_root = buildpath/"vcpkg"
     resource("vcpkg-registry").stage vcpkg_root
     ln_sf formula_opt_bin("vcpkg")/"vcpkg", vcpkg_root/"vcpkg"
@@ -74,11 +83,13 @@ class Wfcli < Formula
               "set(VCPKG_LIBRARY_LINKAGE dynamic)",
               "set(VCPKG_LIBRARY_LINKAGE dynamic)\nset(VCPKG_BUILD_TYPE release)"
 
-    ENV["CARGO_HOME"] = buildpath/".cache/cargo"
-    ENV["CCACHE_DISABLE"] = "1"
+    ENV["CARGO_HOME"] = cache_root/"cargo"
+    ENV["CCACHE_BASEDIR"] = buildpath
+    ENV["CCACHE_DIR"] = cache_root/"ccache"
+    ENV["CCACHE_MAXSIZE"] = "1G"
     ENV["LLVM_ROOT"] = formula_opt_prefix("llvm")
     ENV["VCPKG_ROOT"] = vcpkg_root
-    mkdir_p buildpath/".cache/vcpkg/archives"
+    mkdir_p cache_root/"vcpkg/archives"
 
     system "make", "prod",
            "LLVM_ROOT=#{formula_opt_prefix("llvm")}",
