@@ -113,6 +113,8 @@ class Wfcli < Formula
     system "make", "prod",
            "LLVM_ROOT=#{formula_opt_prefix("llvm")}",
            "NINJA=#{formula_opt_bin("ninja")}/ninja"
+    system sccache, "--show-stats"
+    system sccache, "--stop-server"
 
     gui_rpath = %w[libxkbcommon wayland].map { |dependency| formula_opt_lib(dependency) }.join(File::PATH_SEPARATOR)
     system "patchelf", "--set-rpath", "#{gui_rpath}:$ORIGIN:$ORIGIN/../lib", "prod/bin/wfgui"
