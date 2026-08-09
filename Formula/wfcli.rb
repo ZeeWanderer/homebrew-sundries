@@ -69,7 +69,11 @@ class Wfcli < Formula
   def install
     ENV.llvm_clang
     cache_root = HOMEBREW_CACHE/"wfcli-build"
+    vcpkg_archives = cache_root/"vcpkg/archives"
+    vcpkg_downloads = cache_root/"vcpkg/downloads"
     cache_root.mkpath
+    vcpkg_archives.mkpath
+    vcpkg_downloads.mkpath
     ln_s cache_root, buildpath/".cache" if cache_root != buildpath/".cache"
 
     vcpkg_root = buildpath/"vcpkg"
@@ -84,8 +88,9 @@ class Wfcli < Formula
     ENV["CCACHE_DIR"] = cache_root/"ccache"
     ENV["CCACHE_MAXSIZE"] = "1G"
     ENV["LLVM_ROOT"] = formula_opt_prefix("llvm")
+    ENV["VCPKG_BINARY_SOURCES"] = "clear;files,#{vcpkg_archives},readwrite"
+    ENV["VCPKG_DOWNLOADS"] = vcpkg_downloads
     ENV["VCPKG_ROOT"] = vcpkg_root
-    mkdir_p cache_root/"vcpkg/archives"
 
     system "make", "prod",
            "LLVM_ROOT=#{formula_opt_prefix("llvm")}",

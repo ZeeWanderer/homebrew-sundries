@@ -43,12 +43,14 @@ jobs:
           echo "wfcli cache root: ${cache_root}"
           ls -ld "$(brew --cache)" "${cache_root}" 2>/dev/null || true
 
-      - name: Cache wfcli build data
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore wfcli build cache
+        id: wfcli-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
             ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
           key: linux-wfcli-build-v1-master-${{ github.sha }}
@@ -59,13 +61,30 @@ jobs:
           TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
         run: brew install --build-from-source "${TAP_NAME}/wfcli"
 
-      - name: Verify wfcli build cache
+      - name: Inspect wfcli build cache
+        id: cache_state
         run: |
           echo "wfcli cache contents:"
           ls -la "${WFCLI_BUILD_CACHE_ROOT}"
-          find "${WFCLI_BUILD_CACHE_ROOT}" -maxdepth 3 -type d -print | sort
           du -sh "${WFCLI_BUILD_CACHE_ROOT}"/*
           archive_count="$(find "${WFCLI_BUILD_CACHE_ROOT}/vcpkg/archives" -type f | wc -l)"
           echo "vcpkg archives: ${archive_count}"
-          test "${archive_count}" -gt 0
+          echo "archive_count=${archive_count}" >> "$GITHUB_OUTPUT"
           ccache --show-stats
+
+      - name: Save wfcli build cache
+        if: steps.wfcli-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/ccache
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/cargo
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/rebar3
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/archives
+            ${{ env.WFCLI_BUILD_CACHE_ROOT }}/vcpkg/downloads
+          key: linux-wfcli-build-v1-master-${{ github.sha }}
+
+      - name: Verify wfcli build cache
+        env:
+          ARCHIVE_COUNT: ${{ steps.cache_state.outputs.archive_count }}
+        run: test "${ARCHIVE_COUNT}" -gt 0
