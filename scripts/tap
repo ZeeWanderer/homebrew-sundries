@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./tap bump
+  ./tap publish PR
+
+Environment:
+  GH_REPO  tap repository override
+EOF
+}
+
+repo_name() {
+  if [[ -n "${GH_REPO:-}" ]]; then
+    printf '%s\n' "$GH_REPO"
+  else
+    gh repo view --json nameWithOwner --jq .nameWithOwner
+  fi
+}
+
+case "${1:-}" in
+  bump)
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    gh workflow run autobump.yml --repo "$repo"
+    printf 'Started formula bump: https://github.com/%s/actions/workflows/autobump.yml\n' "$repo"
+    ;;
+  publish)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    repo="$(repo_name)"
+    pr="$2"
+    state="$(gh pr view "$pr" --repo "$repo" --json state --jq .state)"
+    [[ "$state" == OPEN ]] || { printf 'PR %s is not open\n' "$pr" >&2; exit 1; }
+    head_sha="$(gh pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid)"
+    gh pr checks "$pr" --repo "$repo"
+    printf 'Publish PR %s at %s? [y/N] ' "$pr" "$head_sha"
+    read -r answer
+    [[ "$answer" == y || "$answer" == Y ]] || exit 1
+    gh workflow run publish.yml --repo "$repo" \
+      -f "pull_request=$pr" \
+      -f "head_sha=$head_sha"
+    printf 'Started bottle publication: https://github.com/%s/actions/workflows/publish.yml\n' "$repo"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
