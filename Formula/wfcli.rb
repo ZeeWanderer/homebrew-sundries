@@ -82,13 +82,15 @@ class Wfcli < Formula
     inreplace "cmake/vcpkg-triplets/x64-linux-llvm-libcxx.cmake",
               "set(VCPKG_LIBRARY_LINKAGE dynamic)",
               "set(VCPKG_LIBRARY_LINKAGE dynamic)\nset(VCPKG_BUILD_TYPE release)"
+    inreplace "CMakePresets.json",
+              '"VCPKG_DEFAULT_BINARY_CACHE": "${sourceDir}/.cache/vcpkg/archives"',
+              %Q("VCPKG_BINARY_SOURCES": "clear;files,#{vcpkg_archives},readwrite")
 
     ENV["CARGO_HOME"] = cache_root/"cargo"
     ENV["CCACHE_BASEDIR"] = buildpath
     ENV["CCACHE_DIR"] = cache_root/"ccache"
     ENV["CCACHE_MAXSIZE"] = "1G"
     ENV["LLVM_ROOT"] = formula_opt_prefix("llvm")
-    ENV["VCPKG_BINARY_SOURCES"] = "clear;files,#{vcpkg_archives},readwrite"
     ENV["VCPKG_DOWNLOADS"] = vcpkg_downloads
     ENV["VCPKG_ROOT"] = vcpkg_root
 

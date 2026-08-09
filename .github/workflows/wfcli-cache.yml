@@ -64,6 +64,12 @@ jobs:
       - name: Inspect wfcli build cache
         id: cache_state
         run: |
+          make_log="$(brew --cache)/Logs/wfcli/01.make.log"
+          if test -f "${make_log}"; then
+            grep -m 1 -E "Restored [0-9]+ package" "${make_log}" || true
+            grep -m 1 -E "Starting submission" "${make_log}" || true
+            grep -m 1 -E "Completed submission" "${make_log}" || true
+          fi
           echo "wfcli cache contents:"
           ls -la "${WFCLI_BUILD_CACHE_ROOT}"
           du -sh "${WFCLI_BUILD_CACHE_ROOT}"/*
