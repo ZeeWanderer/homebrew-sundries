@@ -7,6 +7,11 @@ class Wfcli < Formula
   license "Apache-2.0"
   head "https://github.com/ZeeWanderer/wfcli.git", branch: "master"
 
+  bottle do
+    root_url "https://ghcr.io/v2/zeewanderer/sundries"
+    sha256 cellar: :any, x86_64_linux: "ae65736941313a3cb2669300a434ee7bff7a539ab7737f63c36a93bd30ed0d14"
+  end
+
   depends_on "autoconf" => :build
   depends_on "autoconf-archive" => :build
   depends_on "automake" => :build
