@@ -49,13 +49,13 @@ install_build_dependencies() {
     install_cmake
     install_missing \
         automake automake \
-        ccache ccache \
         git git \
         jq jq \
         libtool libtoolize \
         ninja ninja \
         pkgconf pkg-config \
-        python python3
+        python python3 \
+        sccache sccache
 
     local aclocal_dir=""
     if command -v aclocal >/dev/null 2>&1; then

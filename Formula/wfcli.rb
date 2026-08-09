@@ -15,7 +15,6 @@ class Wfcli < Formula
   depends_on "autoconf" => :build
   depends_on "autoconf-archive" => :build
   depends_on "automake" => :build
-  depends_on "ccache" => :build
   depends_on "cmake" => :build
   depends_on "erlang" => :build
   depends_on "libtool" => :build
@@ -26,6 +25,7 @@ class Wfcli < Formula
   depends_on "pkgconf" => :build
   depends_on "rebar3" => :build
   depends_on "rust" => :build
+  depends_on "sccache" => :build
   depends_on "vcpkg" => :build
   depends_on "zip" => :build
   depends_on arch: :x86_64
@@ -70,9 +70,11 @@ class Wfcli < Formula
   def install
     ENV.llvm_clang
     cache_root = HOMEBREW_CACHE/"wfcli-build"
+    sccache_dir = cache_root/"sccache"
     vcpkg_archives = cache_root/"vcpkg/archives"
     vcpkg_downloads = cache_root/"vcpkg/downloads"
     cache_root.mkpath
+    sccache_dir.mkpath
     vcpkg_archives.mkpath
     vcpkg_downloads.mkpath
     ln_s cache_root, buildpath/".cache" if cache_root != buildpath/".cache"
@@ -86,14 +88,25 @@ class Wfcli < Formula
     inreplace "CMakePresets.json",
               '"VCPKG_DEFAULT_BINARY_CACHE": "${sourceDir}/.cache/vcpkg/archives"',
               %Q("VCPKG_BINARY_SOURCES": "clear;files,#{vcpkg_archives},readwrite")
+    toolchain = buildpath/"cmake/toolchains/llvm-libcxx.cmake"
+    if toolchain.read.include?("WFCLI_CCACHE")
+      inreplace toolchain, "WFCLI_CCACHE", "WFCLI_SCCACHE"
+      inreplace toolchain, "NAMES ccache", "NAMES sccache"
+    end
 
     ENV["CARGO_HOME"] = cache_root/"cargo"
-    ENV["CCACHE_BASEDIR"] = buildpath
-    ENV["CCACHE_DIR"] = cache_root/"ccache"
-    ENV["CCACHE_MAXSIZE"] = "1G"
+    ENV["CMAKE_C_COMPILER_LAUNCHER"] = formula_opt_bin("sccache")/"sccache"
+    ENV["CMAKE_CXX_COMPILER_LAUNCHER"] = formula_opt_bin("sccache")/"sccache"
     ENV["LLVM_ROOT"] = formula_opt_prefix("llvm")
+    ENV["RUSTC_WRAPPER"] = formula_opt_bin("sccache")/"sccache"
+    ENV["SCCACHE_BASEDIRS"] = buildpath
+    ENV["SCCACHE_CACHE_SIZE"] = "2G"
+    ENV["SCCACHE_DIR"] = sccache_dir
     ENV["VCPKG_DOWNLOADS"] = vcpkg_downloads
     ENV["VCPKG_ROOT"] = vcpkg_root
+
+    sccache = formula_opt_bin("sccache")/"sccache"
+    system sccache, "--show-stats" unless quiet_system(sccache, "--start-server")
 
     system "make", "prod",
            "LLVM_ROOT=#{formula_opt_prefix("llvm")}",

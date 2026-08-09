@@ -57,7 +57,7 @@ Both commands are idempotent.
 - Rebar3
 - Tesseract
 
-Missing CMake, Autoconf tooling, ccache, Git, jq, Ninja, pkg-config, or Python
+Missing CMake, Autoconf tooling, Git, jq, Ninja, pkg-config, Python, or sccache
 are installed after the managed toolchains.
 
 ### `dev`
