@@ -2,8 +2,6 @@ name: brew bump
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "35 3 * * *"
 
 permissions: {}
 
@@ -32,6 +30,8 @@ jobs:
       - name: Set up git
         id: git_setup
         uses: Homebrew/actions/git-user-config@fd832223f9f99ebf0244dd20658680e5d4aca049 # 2026.08.03.2
+        with:
+          username: ${{ github.repository_owner }}
 
       - name: Bump formulae
         env:
