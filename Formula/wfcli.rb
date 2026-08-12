@@ -68,6 +68,7 @@ class Wfcli < Formula
   end
 
   def install
+    ENV.runtime_cpu_detection
     ENV.llvm_clang
     cache_root = HOMEBREW_CACHE/"wfcli-build"
     sccache_dir = cache_root/"sccache"
@@ -135,7 +136,8 @@ class Wfcli < Formula
   test do
     assert_match "COMMANDS:", shell_output("env PATH=/usr/bin:/bin #{bin}/wfcli --help")
     assert_match "Linux/Proton", shell_output("#{bin}/wfcompanion --help")
-    assert_predicate bin/"wfgui", :executable?
+    assert_match "wfcli desktop client",
+                 shell_output("env QT_QPA_PLATFORM=offscreen #{bin}/wfgui --help")
     assert_predicate libexec/"libexec/wfdaemon/bin/wfdaemon", :executable?
     assert_equal 1, Dir[libexec/"libexec/wfdaemon/erts-*/bin/epmd"].length
   end
