@@ -8,6 +8,11 @@ on:
         required: true
       head_sha:
         description: Expected pull request head commit SHA (optional)
+      allow_failed_checks:
+        description: Publish after manually reviewing failed checks
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -33,6 +38,7 @@ jobs:
       - name: Verify publication request
         env:
           GH_TOKEN: ${{ github.token }}
+          ALLOW_FAILED_CHECKS: ${{ inputs.allow_failed_checks }}
           HEAD_SHA: ${{ inputs.head_sha }}
           PULL_REQUEST: ${{ inputs.pull_request }}
         run: |
@@ -42,7 +48,13 @@ jobs:
           [[ "${pr[1]}" == "$GITHUB_REPOSITORY" ]]
           [[ "${pr[2]}" == bump-* ]]
           [[ -z "$HEAD_SHA" || "${pr[3]}" == "$HEAD_SHA" ]]
-          gh pr checks "$PULL_REQUEST" --repo "$GITHUB_REPOSITORY"
+          if [[ "$ALLOW_FAILED_CHECKS" == true ]]
+          then
+            [[ -n "$HEAD_SHA" ]]
+            gh pr checks "$PULL_REQUEST" --repo "$GITHUB_REPOSITORY" || true
+          else
+            gh pr checks "$PULL_REQUEST" --repo "$GITHUB_REPOSITORY"
+          fi
 
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@fd832223f9f99ebf0244dd20658680e5d4aca049 # 2026.08.03.2
