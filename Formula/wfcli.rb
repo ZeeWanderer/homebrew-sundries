@@ -115,7 +115,7 @@ class Wfcli < Formula
            "LLVM_ROOT=#{formula_opt_prefix("llvm")}",
            "NINJA=#{formula_opt_bin("ninja")}/ninja"
     system sccache, "--show-stats"
-    system sccache, "--stop-server"
+    quiet_system sccache, "--stop-server"
 
     gui_rpath = %w[libxkbcommon wayland].map { |dependency| formula_opt_lib(dependency) }.join(File::PATH_SEPARATOR)
     system "patchelf", "--set-rpath", "#{gui_rpath}:$ORIGIN:$ORIGIN/../lib", "prod/bin/wfgui"
@@ -128,7 +128,7 @@ class Wfcli < Formula
       system "patchelf", "--set-rpath", "$ORIGIN", "prod/lib/#{library}"
     end
     libexec.install Dir["prod/*"]
-    %w[wfcli wfcompanion wfdaemon wfgui].each do |command|
+    %w[wfcli wfcompanion wfdaemon wfinspect wfgui].each do |command|
       bin.install_symlink libexec/"bin"/command
     end
   end
@@ -136,6 +136,7 @@ class Wfcli < Formula
   test do
     assert_match "COMMANDS:", shell_output("env PATH=/usr/bin:/bin #{bin}/wfcli --help")
     assert_match "Linux/Proton", shell_output("#{bin}/wfcompanion --help")
+    assert_match "runtime diagnostics", shell_output("#{bin}/wfinspect --help")
     assert_match "wfcli desktop client",
                  shell_output("env QT_QPA_PLATFORM=offscreen #{bin}/wfgui --help")
     assert_predicate libexec/"libexec/wfdaemon/bin/wfdaemon", :executable?
