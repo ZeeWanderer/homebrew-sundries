@@ -2,8 +2,8 @@ class Wfcli < Formula
   desc "Warframe toolkit for terminal, desktop, MCP, and Linux/Proton overlays"
   homepage "https://github.com/ZeeWanderer/wfcli"
   url "https://github.com/ZeeWanderer/wfcli.git",
-      tag:      "v0.1.7",
-      revision: "88fc9cd36a1886b5efa8ee801042584344f66ae6"
+      tag:      "v0.2.0",
+      revision: "e808f7ca1678ca7cfcbfbbd9361c829ae19e5c54"
   license "Apache-2.0"
   head "https://github.com/ZeeWanderer/wfcli.git", branch: "master"
 
