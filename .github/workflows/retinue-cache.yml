@@ -1,11 +1,11 @@
-name: warm wfcli build cache
+name: warm Retinue build cache
 
 on:
   push:
     branches:
       - master
     paths:
-      - Formula/wfcli.rb
+      - Formula/retinue.rb
   workflow_dispatch:
     inputs:
       clean:
@@ -17,7 +17,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: wfcli-build-cache
+  group: retinue-build-cache
   cancel-in-progress: false
 
 defaults:
@@ -42,7 +42,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Locate wfcli build cache
+      # Keep the storage path and keys so the package rename retains warm caches.
+      - name: Locate Retinue build cache
         run: |
           cache_root="$(brew --cache)/wfcli-build"
           {
@@ -51,13 +52,13 @@ jobs:
             echo "SCCACHE_DIR=${cache_root}/sccache"
             echo "SCCACHE_SERVER_UDS=${cache_root}/sccache.sock"
           } >> "$GITHUB_ENV"
-          echo "wfcli cache root: ${cache_root}"
+          echo "Retinue cache root: ${cache_root}"
           ls -ld "$(brew --cache)" "${cache_root}" 2>/dev/null || true
 
       - name: Install cache compressor
         run: brew install zstd
 
-      - name: Restore wfcli build cache
+      - name: Restore Retinue build cache
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.clean != true }}
         id: wfcli-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -78,10 +79,10 @@ jobs:
           key: linux-wfcli-sccache-v1-master-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: linux-wfcli-sccache-v1-master-
 
-      - name: Build wfcli from source
+      - name: Build Retinue from source
         env:
           TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
-        run: brew install --verbose --build-from-source --keep-tmp "${TAP_NAME}/wfcli"
+        run: brew install --verbose --build-from-source --keep-tmp "${TAP_NAME}/retinue"
 
       - name: Prune build caches
         run: |
@@ -111,16 +112,16 @@ jobs:
             echo "vcpkg active ABIs: ${#active_abis[@]}; stale archives removed: ${removed}"
           fi
 
-      - name: Inspect wfcli build cache
+      - name: Inspect Retinue build cache
         id: cache_state
         run: |
-          make_log="$(brew --cache)/Logs/wfcli/01.make.log"
+          make_log="$(brew --cache)/Logs/retinue/01.make.log"
           if test -f "${make_log}"; then
             grep -m 1 -E "Restored [0-9]+ package" "${make_log}" || true
             grep -m 1 -E "Starting submission" "${make_log}" || true
             grep -m 1 -E "Completed submission" "${make_log}" || true
           fi
-          echo "wfcli cache contents:"
+          echo "Retinue cache contents:"
           ls -la "${WFCLI_BUILD_CACHE_ROOT}"
           du -sh "${WFCLI_BUILD_CACHE_ROOT}"/* || true
           archive_count="$(find "${WFCLI_BUILD_CACHE_ROOT}/vcpkg/archives" -type f | wc -l)"
@@ -130,12 +131,12 @@ jobs:
           fi
           echo "archive_count=${archive_count}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify wfcli build cache
+      - name: Verify Retinue build cache
         env:
           ARCHIVE_COUNT: ${{ steps.cache_state.outputs.archive_count }}
         run: test "${ARCHIVE_COUNT}" -gt 0
 
-      - name: Save wfcli build cache
+      - name: Save Retinue build cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

@@ -13,7 +13,7 @@ on:
       - .github/workflows/tests.yml
 
 concurrency:
-  group: wfcli-build-cache
+  group: retinue-build-cache
   cancel-in-progress: false
 
 permissions: {}
@@ -48,7 +48,7 @@ jobs:
           key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
           restore-keys: ${{ runner.os }}-rubygems-
 
-      - name: Locate wfcli build cache
+      - name: Locate Retinue build cache
         run: |
           {
             echo "WFCLI_BUILD_CACHE_ROOT=$(brew --cache)/wfcli-build"
@@ -59,7 +59,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: brew install zstd
 
-      - name: Restore wfcli build cache
+      - name: Restore Retinue build cache
         if: github.event_name == 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

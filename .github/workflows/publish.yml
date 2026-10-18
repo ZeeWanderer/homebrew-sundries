@@ -101,7 +101,7 @@ jobs:
           gh api --method DELETE \
             "repos/$GITHUB_REPOSITORY/git/refs/heads/${head[1]}"
 
-      - name: Warm wfcli build cache
+      - name: Warm Retinue build cache
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run wfcli-cache.yml --repo "$GITHUB_REPOSITORY" --ref master
+        run: gh workflow run retinue-cache.yml --repo "$GITHUB_REPOSITORY" --ref master
