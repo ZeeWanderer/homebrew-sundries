@@ -28,7 +28,7 @@ class Retinue < Formula
   depends_on "libxkbcommon"
   depends_on :linux
   depends_on "ncurses"
-  depends_on "openssl@3"
+  depends_on "openssl@4"
   depends_on "tesseract"
   depends_on "wayland"
   depends_on "zlib-ng-compat"
@@ -173,6 +173,14 @@ class Retinue < Formula
                  shell_output("env QT_QPA_PLATFORM=offscreen #{bin}/wfgui --help")
     assert_predicate libexec/"libexec/retinue_daemon/bin/retinue_daemon", :executable?
     assert_equal 1, Dir[libexec/"libexec/retinue_daemon/erts-*/bin/epmd"].length
+    release = libexec/"libexec/retinue_daemon"
+    erl = Dir[release/"erts-*/bin/erl"].fetch(0)
+    system erl, "-boot", release/"releases/#{version}/start_clean", "-noshell", "-eval", <<~ERLANG
+      {ok, _} = application:ensure_all_started(ssl),
+      <<"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad">> =
+        binary:encode_hex(crypto:hash(sha256, <<"abc">>), lowercase),
+      halt().
+    ERLANG
     assert_predicate pkgshare/"migrate-wfcli-storage", :executable?
   end
 end
