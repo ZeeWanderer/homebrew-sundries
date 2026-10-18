@@ -35,7 +35,7 @@ class Retinue < Formula
 
   resource "vcpkg-registry" do
     url "https://github.com/microsoft/vcpkg.git",
-        revision: "3ad1f444504f4cb2ca0ede7b57ba2ffbdb7a3c75"
+        revision: "a42757564758c60651ebc616d9b000b7b91249ef"
   end
 
   service do
@@ -100,6 +100,18 @@ class Retinue < Formula
     ENV["SCCACHE_SERVER_UDS"] = sccache_socket
     ENV["VCPKG_DOWNLOADS"] = vcpkg_downloads
     ENV["VCPKG_ROOT"] = vcpkg_root
+
+    # Tool metadata follows vcpkg; library versions stay pinned by the GUI manifest.
+    vcpkg = formula_opt_bin("vcpkg")/"vcpkg"
+    system vcpkg, "version"
+    system "git", "-C", vcpkg_root, "rev-parse", "HEAD"
+    system vcpkg, "install", "--dry-run",
+           "--x-manifest-root=#{buildpath}/apps/wfgui",
+           "--x-install-root=#{buildpath}/_build/vcpkg_installed",
+           "--overlay-triplets=#{buildpath}/cmake/vcpkg-triplets",
+           "--overlay-ports=#{buildpath}/cmake/vcpkg-ports",
+           "--triplet=x64-linux-llvm-libcxx",
+           "--host-triplet=x64-linux-llvm-libcxx"
 
     sccache = formula_opt_bin("sccache")/"sccache"
     system sccache, "--show-stats" unless quiet_system(sccache, "--start-server")
