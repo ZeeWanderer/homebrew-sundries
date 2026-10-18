@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-#: Usage: brew wfcli-deps build|dev
-#: Install wfcli build or development dependencies with Homebrew Bundle.
+#: Usage: brew retinue-deps build|dev
+#: Install Retinue build or development dependencies with Homebrew Bundle.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 profile="${1:-}"
@@ -45,7 +45,7 @@ install_build_dependencies() {
         exit 1
     fi
 
-    brew bundle install --file="$root/Brewfile.wfcli-build"
+    brew bundle install --file="$root/Brewfile.retinue-build"
     install_cmake
     install_missing \
         automake automake \
@@ -55,7 +55,8 @@ install_build_dependencies() {
         ninja ninja \
         pkgconf pkg-config \
         python python3 \
-        sccache sccache
+        sccache sccache \
+        vcpkg vcpkg
 
     local aclocal_dir=""
     if command -v aclocal >/dev/null 2>&1; then
@@ -67,7 +68,7 @@ install_build_dependencies() {
 }
 
 install_dev_dependencies() {
-    brew bundle install --file="$root/Brewfile.wfcli-dev"
+    brew bundle install --file="$root/Brewfile.retinue-dev"
     install_missing \
         ffmpeg ffmpeg \
         node node \
@@ -77,7 +78,7 @@ install_dev_dependencies() {
 }
 
 if [[ "$(uname -s)" != "Linux" ]]; then
-    printf '%s\n' 'wfcli dependency profiles require Linux' >&2
+    printf '%s\n' 'Retinue dependency profiles require Linux' >&2
     exit 1
 fi
 
@@ -90,7 +91,7 @@ case "$profile" in
         install_dev_dependencies
         ;;
     *)
-        printf '%s\n' 'usage: brew wfcli-deps build|dev' >&2
+        printf '%s\n' 'usage: brew retinue-deps build|dev' >&2
         exit 2
         ;;
 esac
