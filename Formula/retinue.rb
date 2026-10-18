@@ -1,16 +1,11 @@
-class Wfcli < Formula
-  desc "Warframe toolkit for terminal, desktop, MCP, and Linux/Proton overlays"
-  homepage "https://github.com/ZeeWanderer/wfcli"
-  url "https://github.com/ZeeWanderer/wfcli.git",
-      tag:      "v0.2.1",
-      revision: "dfa0f64f5439ec3c353eaab0d5fbad6352d9d5db"
+class Retinue < Formula
+  desc "Linux game companions, overlays, CLI, and desktop tools"
+  homepage "https://github.com/ZeeWanderer/retinue"
+  url "https://github.com/ZeeWanderer/retinue.git",
+      tag:      "v0.3.0",
+      revision: "583272e17199d1ba801ff4acffa92270e0d3a79a"
   license "Apache-2.0"
-  head "https://github.com/ZeeWanderer/wfcli.git", branch: "master"
-
-  bottle do
-    root_url "https://ghcr.io/v2/zeewanderer/sundries"
-    sha256 cellar: :any, x86_64_linux: "f4732f07f059470ea52e98ed1060a39c36d427be90d0bae96edf80c6ad09ad1f"
-  end
+  head "https://github.com/ZeeWanderer/retinue.git", branch: "master"
 
   depends_on "autoconf" => :build
   depends_on "autoconf-archive" => :build
@@ -23,6 +18,7 @@ class Wfcli < Formula
   depends_on "ninja" => :build
   depends_on "patchelf" => :build
   depends_on "pkgconf" => :build
+  depends_on "python@3.14" => :build
   depends_on "rebar3" => :build
   depends_on "rust" => :build
   depends_on "sccache" => :build
@@ -39,25 +35,25 @@ class Wfcli < Formula
 
   resource "vcpkg-registry" do
     url "https://github.com/microsoft/vcpkg.git",
-        revision: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+        revision: "3ad1f444504f4cb2ca0ede7b57ba2ffbdb7a3c75"
   end
 
   service do
-    state_dir = Pathname.new(Dir.home)/".local/state/wfcli"
-    log_dir = Pathname.new(Dir.home)/".cache/wfcli/daemon-log"
-    name linux: "wfdaemon"
-    run [opt_libexec/"bin/wfdaemon", "foreground"]
+    state_dir = Pathname.new(Dir.home)/".local/state/retinue"
+    log_dir = state_dir/"daemon-log"
+    name linux: "retinue-daemon"
+    run [opt_libexec/"bin/retinue-daemon", "foreground"]
     keep_alive crashed: true
     restart_delay 2
     working_dir state_dir
-    log_path log_dir/"wfdaemon.log"
-    error_log_path log_dir/"wfdaemon.log"
+    log_path log_dir/"daemon.log"
+    error_log_path log_dir/"daemon.log"
     environment_variables(
-      WFCLI_PACKAGE_MANAGER:      "homebrew",
-      WFCLI_DAEMON_IDLE_POLICY:   "persistent",
-      WFCLI_BUILD_FLAVOR:         "prod",
-      WFCLI_INSTALL_ROOT:         opt_libexec,
-      WFCLI_UPDATE_ROOT:          opt_libexec,
+      RETINUE_PACKAGE_MANAGER:    "homebrew",
+      RETINUE_DAEMON_IDLE_POLICY: "persistent",
+      RETINUE_BUILD_FLAVOR:       "prod",
+      RETINUE_INSTALL_ROOT:       opt_libexec,
+      RETINUE_UPDATE_ROOT:        opt_libexec,
       RUNNER_LOG_DIR:             log_dir,
       ERL_CRASH_DUMP:             state_dir/"erl_crash.dump",
       LD_PRELOAD:                 "",
@@ -70,6 +66,8 @@ class Wfcli < Formula
   def install
     ENV.runtime_cpu_detection
     ENV.llvm_clang
+    ENV.prepend_path "PATH", formula_opt_libexec("python@3.14")/"bin"
+    # Retain the old cache namespace across the formula rename.
     cache_root = HOMEBREW_CACHE/"wfcli-build"
     sccache_dir = cache_root/"sccache"
     sccache_socket = cache_root/"sccache.sock"
@@ -90,11 +88,6 @@ class Wfcli < Formula
     inreplace "CMakePresets.json",
               '"VCPKG_DEFAULT_BINARY_CACHE": "${sourceDir}/.cache/vcpkg/archives"',
               %Q("VCPKG_BINARY_SOURCES": "clear;files,#{vcpkg_archives},readwrite")
-    toolchain = buildpath/"cmake/toolchains/llvm-libcxx.cmake"
-    if toolchain.read.include?("WFCLI_CCACHE")
-      inreplace toolchain, "WFCLI_CCACHE", "WFCLI_SCCACHE"
-      inreplace toolchain, "NAMES ccache", "NAMES sccache"
-    end
 
     ENV["CARGO_HOME"] = cache_root/"cargo"
     ENV["CMAKE_C_COMPILER_LAUNCHER"] = formula_opt_bin("sccache")/"sccache"
@@ -128,18 +121,46 @@ class Wfcli < Formula
       system "patchelf", "--set-rpath", "$ORIGIN", "prod/lib/#{library}"
     end
     libexec.install Dir["prod/*"]
-    %w[wfcli wfcompanion wfdaemon wfinspect wfgui].each do |command|
+    %w[retinue retinue-daemon retinue-inspect wfcli poe2cli arccli
+       wfcompanion poe2companion arccompanion wfinspect wf-luau-decompiler wfgui].each do |command|
       bin.install_symlink libexec/"bin"/command
     end
+    %w[retinue wfcli poe2cli arccli].each do |command|
+      bash_completion.install_symlink libexec/"share/bash-completion/completions/#{command}.bash" => command
+    end
+    pkgshare.install "scripts/migrate-wfcli-storage"
+  end
+
+  def caveats
+    <<~EOS
+      Steam launch options:
+        Warframe: #{opt_bin}/wfcompanion launch -- %command%
+        PoE2:     #{opt_bin}/poe2companion launch -- %command%
+
+      Register the Warframe desktop launcher with: wfcli gui install
+      Check companion health with: retinue doctor
+
+      Disable any legacy wfdaemon.service before starting Retinue.
+      To copy legacy wfcli settings and saved builds, close all clients and daemons,
+      then review: #{opt_pkgshare}/migrate-wfcli-storage --dry-run
+      Apply with --apply. Original data is retained; existing targets are not overwritten.
+    EOS
   end
 
   test do
-    assert_match "COMMANDS:", shell_output("env PATH=/usr/bin:/bin #{bin}/wfcli --help")
+    assert_match "doctor", shell_output("env PATH=/usr/bin:/bin #{bin}/retinue --help")
+    assert_match "retinue warframe <command>", shell_output("env PATH=/usr/bin:/bin #{bin}/wfcli --help")
+    assert_match "companion", shell_output("#{bin}/poe2cli --help")
+    assert_match "companion", shell_output("#{bin}/arccli --help")
     assert_match "Linux/Proton", shell_output("#{bin}/wfcompanion --help")
-    assert_match "runtime diagnostics", shell_output("#{bin}/wfinspect --help")
+    assert_match "0.3.0", shell_output("#{bin}/poe2companion --version")
+    assert_match "0.3.0", shell_output("#{bin}/arccompanion --version")
+    assert_match "process inspection", shell_output("#{bin}/retinue-inspect --help")
+    assert_match "process inspection", shell_output("#{bin}/wfinspect --help")
     assert_match "wfcli desktop client",
                  shell_output("env QT_QPA_PLATFORM=offscreen #{bin}/wfgui --help")
-    assert_predicate libexec/"libexec/wfdaemon/bin/wfdaemon", :executable?
-    assert_equal 1, Dir[libexec/"libexec/wfdaemon/erts-*/bin/epmd"].length
+    assert_predicate libexec/"libexec/retinue_daemon/bin/retinue_daemon", :executable?
+    assert_equal 1, Dir[libexec/"libexec/retinue_daemon/erts-*/bin/epmd"].length
+    assert_predicate pkgshare/"migrate-wfcli-storage", :executable?
   end
 end
