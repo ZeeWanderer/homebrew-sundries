@@ -1,5 +1,7 @@
 brew "erlang"
+brew "libxkbcommon"
 brew "llvm"
 brew "mingw-w64"
 brew "rebar3"
 brew "tesseract"
+brew "wayland"
