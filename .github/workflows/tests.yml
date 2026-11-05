@@ -13,7 +13,9 @@ on:
       - .github/workflows/tests.yml
 
 concurrency:
-  group: retinue-build-cache
+  # Only PR formula builds need to wait for the cache warmer.
+  # Push runs perform setup and syntax checks without using the build cache.
+  group: ${{ github.event_name == 'pull_request' && 'retinue-build-cache' || format('{0}-{1}', github.workflow, github.ref) }}
   cancel-in-progress: false
 
 permissions: {}
